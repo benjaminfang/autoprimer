@@ -16,8 +16,6 @@ def getargs_info(cmd_args):
     parser.add_argument("--extend_down", type=int, default=0, help="extend gene downstream")
     parser.add_argument("--add_geneseq", "-A", action='store_true', help="add gene sequence information")
     parser.add_argument("--add_transseq", "-B", action='store_true', help="add transcript sequence information")
-    parser.add_argument("--add_exonseq", "-C", action='store_true', help="add exon sequence informamtion")
-    parser.add_argument("--anno_exonseq", action='store_true', help="add exon sequence informamtion")
     parser.add_argument("--add_cdsseq", "-D", action='store_true', help="add CDS sequence information")
 
     parser.add_argument("--outfile", "-O", help="name of output file.",
@@ -27,39 +25,41 @@ def getargs_info(cmd_args):
     args = parser.parse_args(cmd_args)
     return  (args.gtf, args.fasta, args.outfile, args.geneid,
              args.extend_up, args.extend_down,
-             args.add_geneseq, args.add_transseq, args.add_exonseq, args.add_cdsseq,
-             args.anno_exonseq)
+             args.add_geneseq, args.add_transseq, args.add_cdsseq)
 
 
-def getargs_primer():
+def getargs_primer(cmd_args):
     pass
 
 
 def get_info(args):
     (gtf, fasta, outfile, geneids,
      extend_up, extend_down,
-     add_geneseq, add_transseq, add_exonseq, add_cdsseq,
-     anno_exonseq) \
-        = getargs_info(args)
+     add_geneseq, add_transseq, add_cdsseq) = getargs_info(args)
     fasta = FASTA(fasta)
     gtf = GTF(gtf)
+
     if outfile:
         outfile_fout = open(outfile, "w")
     else:
-        outfile_fout = sys.stderr
+        outfile_fout = sys.stdout
+
     for geneid in geneids:
         gene = gtf.get_gene(geneid)
+        if not gene:
+            continue
         geneid = gene.get_geneid()
         geneinfo = gene.get_info()
         seqname = geneinfo[0]
         pos = geneinfo[2][0]
         ori = geneinfo[3]
+
         seq_len = str(pos[1] - pos[0] + 1)
         print("\t".join([">" + geneid, seqname,
                 ",".join([str(ele) for ele in pos]), ori, seq_len]),
                 file=outfile_fout)
-        seq = fasta.get_seq(seqname)
 
+        seq = fasta.get_seq(seqname)
         if ori == "+":
             if extend_up > 0:
                 up_seq = seq.substr(pos[0] - extend_up, pos[0] - 1)
@@ -84,9 +84,9 @@ def get_info(args):
             gene_seq = Seq(seq.substr(pos[0], pos[1])).reverse_comp().seq
 
         if add_geneseq:
-            print("\t".join(["&UP", up_seq]))
-            print("\t".join(["&GENESEQ", gene_seq]))
-            print("\t".join(["&DOWN", down_seq]))
+            print("\t".join(["&UP", up_seq]), file=outfile_fout)
+            print("\t".join(["&GENESEQ", gene_seq]), file=outfile_fout)
+            print("\t".join(["&DOWN", down_seq]), file=outfile_fout)
 
         if ori == "+":
             ref_pos = geneinfo[2][0][0]
@@ -101,10 +101,13 @@ def get_info(args):
                 pos = traninfo[2]
                 ori = traninfo[3]
                 pos = change_coordinate(ref_pos, pos, coor="relative", ori=ori)
-                print("\t".join(["@" + transid, ",".join([str(ele) for ele in pos[0]]), ori]))
+                trans_len = pos[0][1] - pos[0][0] + 1
+                print("\t".join(["@" + transid,
+                    ",".join([str(ele) for ele in pos[0]]), ori], str(trans_len)),
+                    file=outfile_fout)
                 if add_transseq:
                     trans_seq = gene_seq[pos[0] - 1: pos[1]]
-                    print("\t".join(["&TRANSEQ", trans_seq]))
+                    print("\t".join(["&TRANSEQ", trans_seq]), file=outfile_fout)
 
                 exon, cds, start_codon, stop_codon = tran.get_child()
 
@@ -114,8 +117,9 @@ def get_info(args):
                     ori = start_info[3]
                     pos = change_coordinate(ref_pos, pos, coor="relative", ori=ori)
                     start_up = pos[0][0]
+                    start_len = pos[-1][-1] - pos[0][0] + 1
                     pos = [str(ele[0]) + "," + str(ele[1]) for ele in pos]
-                    start_line = "\t".join(["$START", ";".join(pos), ori])
+                    start_line = "\t".join(["$START", ";".join(pos), ori, str(start_len)])
 
                 if stop_codon:
                     stop_info = stop_codon.get_info()
@@ -123,16 +127,20 @@ def get_info(args):
                     ori = stop_info[3]
                     pos = change_coordinate(ref_pos, pos, coor="relative", ori=ori)
                     stop_up = pos[0][0]
+                    stop_len = pos[-1][-1] - pos[0][0] + 1
                     pos = [str(ele[0]) + "," + str(ele[1]) for ele in pos]
-                    stop_line = "\t".join(["$STOP", ";".join(pos), ori])
+                    stop_line = "\t".join(["$STOP", ";".join(pos), ori], str(stop_len))
 
                 if cds:
                     cds_info = cds.get_info()
                     pos = cds_info[2]
                     ori = cds_info[3]
                     pos = change_coordinate(ref_pos, pos, coor="relative", ori=ori)
+                    cds_len = 0
+                    for pp in pos:
+                        pp += pp[1] - pp[0] + 1
                     pos_str = [str(ele[0]) + "," + str(ele[1]) for ele in pos]
-                    cds_line = "\t".join(["$CDS", ";".join(pos_str), ori])
+                    cds_line = "\t".join(["$CDS", ";".join(pos_str), ori, str(cds_len)])
                     cds_seq = ""
                     if add_cdsseq:
                         for pp in pos:
@@ -143,8 +151,11 @@ def get_info(args):
                     pos = exoninfo[2]
                     ori = exoninfo[3]
                     pos = change_coordinate(ref_pos, pos, coor="relative", ori=ori)
+                    exon_len = 0
+                    for pp in pos:
+                        exon_len += pp[1] - pp[0] + 1
                     pos_str = [str(ele[0]) + "," + str(ele[1]) for ele in pos]
-                    exon_line = "\t".join(["$EXON", ";".join(pos_str), ori])
+                    exon_line = "\t".join(["$EXON", ";".join(pos_str), ori, str(exon_len)])
 
                     exon_seq = []
                     exon_seq_anno = []
@@ -165,19 +176,18 @@ def get_info(args):
                     exon_seq_anno = "".join(exon_seq_anno)
 
 
-                print(exon_line)
-                if anno_exonseq:
-                    print(exon_seq_anno)
-                elif add_exonseq:
-                    print(exon_seq)
+                print(exon_line, file=outfile_fout)
+                print(exon_seq_anno, file=outfile_fout)
 
-                print(cds_line)
+                print(cds_line, file=outfile_fout)
                 if add_cdsseq:
-                    print(cds_seq)
+                    print(cds_seq, file=outfile_fout)
 
-                print(start_line)
-                print(stop_line)
+                print(start_line, file=outfile_fout)
+                print(stop_line, file=outfile_fout)
 
+            if outfile:
+                outfile_fout.close()
 
 def get_primer():
     pass
