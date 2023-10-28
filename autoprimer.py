@@ -103,7 +103,7 @@ def get_info(args):
                 pos = change_coordinate(ref_pos, pos, coor="relative", ori=ori)
                 trans_len = pos[0][1] - pos[0][0] + 1
                 print("\t".join(["@" + transid,
-                    ",".join([str(ele) for ele in pos[0]]), ori], str(trans_len)),
+                    ",".join([str(ele) for ele in pos[0]]), ori, str(trans_len)]),
                     file=outfile_fout)
                 if add_transseq:
                     trans_seq = gene_seq[pos[0] - 1: pos[1]]
