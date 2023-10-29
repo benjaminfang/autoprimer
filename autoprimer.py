@@ -103,7 +103,7 @@ def get_info(args):
                 pos = change_coordinate(ref_pos, pos, coor="relative", ori=ori)
                 trans_len = pos[0][1] - pos[0][0] + 1
                 print("\t".join(["@" + transid,
-                    ",".join([str(ele) for ele in pos[0]]), ori], str(trans_len)),
+                    ",".join([str(ele) for ele in pos[0]]), ori, str(trans_len)]),
                     file=outfile_fout)
                 if add_transseq:
                     trans_seq = gene_seq[pos[0] - 1: pos[1]]
@@ -129,16 +129,17 @@ def get_info(args):
                     stop_up = pos[0][0]
                     stop_len = pos[-1][-1] - pos[0][0] + 1
                     pos = [str(ele[0]) + "," + str(ele[1]) for ele in pos]
-                    stop_line = "\t".join(["$STOP", ";".join(pos), ori], str(stop_len))
+                    stop_line = "\t".join(["$STOP", ";".join(pos), ori, str(stop_len)])
 
                 if cds:
                     cds_info = cds.get_info()
                     pos = cds_info[2]
+                    print(pos)
                     ori = cds_info[3]
                     pos = change_coordinate(ref_pos, pos, coor="relative", ori=ori)
                     cds_len = 0
                     for pp in pos:
-                        pp += pp[1] - pp[0] + 1
+                        cds_len += pp[1] - pp[0] + 1
                     pos_str = [str(ele[0]) + "," + str(ele[1]) for ele in pos]
                     cds_line = "\t".join(["$CDS", ";".join(pos_str), ori, str(cds_len)])
                     cds_seq = ""
